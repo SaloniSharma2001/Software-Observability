@@ -138,13 +138,13 @@ To achieve this, <strong>Distributed Tracing</strong> creates
   </li>
 </ul>
 
-<p>Let's say everything in here is a synchronous call. Service A is waiting till all the internal processes are done and response can be returned from Service A's end. So, we now know which serivce took how much time.</p>
+<p>Let's say everything in here is a synchronous call. Service A is waiting till all the internal processes are done, and a response can be returned from Service A's end. So, we now know which service took how much time.</p>
 
 <img width="1577" height="676" alt="image" src="https://github.com/user-attachments/assets/bf79c3e4-47ca-4cb2-b507-b124c55b008f" />
 
-<p>We can make our own custom span and inside that a child span, just to know when the a particular operation started and when it ended. A child span will be part of parent span means task inside a task and how much time it took for that child task to execute will be observed with the help of child span.</p>
+<p>We can make our own custom span and inside that a child span, just to know when a particular operation started and when it ended. A child span will be part of the parent span, which means the task inside a task and how much time it took for that child task to execute will be observed with the help of the child span.</p>
 
- <strong>In general, below mentioned are the cases for which Springboot microserivce internally creates a new span</strong>:
+ <strong>In general, mentioned below are those for which Springboot microservice internally creates a new span</strong>:
 
 <ul>
   <li>When we have <strong>an incoming request</strong> to an application.</li>
@@ -484,6 +484,234 @@ This creates a <strong>tree-like visualization</strong> that shows:
 Using tools like <strong>Zipkin UI</strong> or <strong>Grafana</strong>, engineers
 can easily analyze and debug distributed systems.
 </p>
+
+<h2>Modern Flow</h2>
+
+<p>Micrometer has replaced Spring Cloud Sleuth because Sleuth uses the Brave library very specific to Zipkin only, and a new backend could not be easily integrated with Sleuth; however, Micrometer is an interface only.</p>
+
+<img width="689" height="595" alt="image" src="https://github.com/user-attachments/assets/5046f67f-0525-49ec-9645-0df662e1e041" />
+
+<img width="1810" height="690" alt="image" src="https://github.com/user-attachments/assets/be457906-6282-431f-9014-c9f1616743b9" />
+
+<p>OpenTelemetry provides an implementation of all those APIs of Micrometer. Even Brave does that, but in this case, we shall have to use the Zipkin backend. Whereas, OpenTelemetry is backend agnostic</p>
+
+<h2>What is OTLP (OpenTelemetry Protocol)?</h2>
+
+<p>
+<strong>OTLP (OpenTelemetry Protocol)</strong> is a vendor-neutral, standardized
+protocol used to <strong>send observability data</strong> such as
+<strong>traces, metrics, and logs</strong> from applications to observability
+backends.
+</p>
+
+<p>
+It is part of the <strong>OpenTelemetry</strong> ecosystem and is designed to
+replace vendor-specific formats with a <strong>single unified protocol</strong>.
+</p>
+
+<hr/>
+
+<h3>Why OTLP is Needed</h3>
+
+<p>
+Before OTLP, each observability backend used its own data format and ingestion
+mechanism:
+</p>
+
+<ul>
+  <li>Zipkin had its own trace format</li>
+  <li>Jaeger had a different ingestion format</li>
+  <li>Metrics and logs required separate exporters</li>
+</ul>
+
+<p>
+This made it difficult to switch tools or send the same data to multiple
+backends.
+</p>
+
+<p>
+<strong>OTLP solves this problem</strong> by acting as a common language between
+applications and observability platforms.
+</p>
+
+<hr/>
+
+<h3>What Data Does OTLP Carry?</h3>
+
+<ul>
+  <li><strong>Traces</strong> (Trace ID, Span ID, Parent Span ID, latency, errors)</li>
+  <li><strong>Metrics</strong> (counters, gauges, histograms)</li>
+  <li><strong>Logs</strong> (structured logs with context)</li>
+</ul>
+
+<p>
+OTLP supports both:
+</p>
+
+<ul>
+  <li><strong>gRPC</strong> (default, efficient, binary)</li>
+  <li><strong>HTTP/JSON</strong> (human-readable, easier debugging)</li>
+</ul>
+
+<hr/>
+
+<h2>How OTLP Works (High-Level Flow)</h2>
+
+<pre>
+Application
+   |
+   |  (OTLP: Traces / Metrics / Logs)
+   v
+OpenTelemetry SDK
+   |
+   v
+OpenTelemetry Collector
+   |
+   +----> Zipkin
+   |
+   +----> Jaeger
+   |
+   +----> Grafana (Tempo / Mimir / Loki)
+</pre>
+
+<p>
+The application sends observability data in OTLP format to the
+<strong>OpenTelemetry Collector</strong>, which then forwards it to one or more
+backends.
+</p>
+
+<hr/>
+
+<h2>How Zipkin Uses OTLP</h2>
+
+<p>
+<strong>Zipkin</strong> is primarily a distributed tracing backend.
+</p>
+
+<p>
+Modern Zipkin setups can:
+</p>
+
+<ul>
+  <li>Accept traces via <strong>OTLP</strong></li>
+  <li>Convert OTLP trace data into Zipkin’s internal format</li>
+  <li>Visualize traces as request trees</li>
+</ul>
+
+<p>
+Flow:
+</p>
+
+<pre>
+Application → OTLP → OpenTelemetry Collector → Zipkin
+</pre>
+
+<p>
+Zipkin uses OTLP data to:
+</p>
+
+<ul>
+  <li>Build parent-child span relationships</li>
+  <li>Calculate service latencies</li>
+  <li>Identify failures and bottlenecks</li>
+</ul>
+
+<hr/>
+
+<h2>How Jaeger Uses OTLP</h2>
+
+<p>
+<strong>Jaeger</strong> is also a distributed tracing backend, but it is
+<strong>natively aligned with OpenTelemetry</strong>.
+</p>
+
+<p>
+Jaeger can:
+</p>
+
+<ul>
+  <li>Directly ingest <strong>OTLP traces</strong></li>
+  <li>Store them in its internal trace storage</li>
+  <li>Display end-to-end request flows</li>
+</ul>
+
+<p>
+Flow:
+</p>
+
+<pre>
+Application → OTLP → OpenTelemetry Collector → Jaeger
+</pre>
+
+<p>
+Because OTLP is the default OpenTelemetry protocol, Jaeger integration is
+<strong>simpler and more future-proof</strong> compared to legacy Zipkin-only
+setups.
+</p>
+
+<hr/>
+
+<h2>How Grafana Uses OTLP</h2>
+
+<p>
+<strong>Grafana</strong> is not a single backend but a complete observability
+platform that works with multiple storage systems.
+</p>
+
+<p>
+Grafana uses OTLP with different components:
+</p>
+
+<ul>
+  <li><strong>Grafana Tempo</strong> → Traces (OTLP)</li>
+  <li><strong>Grafana Mimir / Prometheus</strong> → Metrics (OTLP)</li>
+  <li><strong>Grafana Loki</strong> → Logs (OTLP or structured logs)</li>
+</ul>
+
+<p>
+Flow:
+</p>
+
+<pre>
+Application
+   |
+   v
+OTLP
+   |
+   v
+OpenTelemetry Collector
+   |
+   +----> Grafana Tempo (Traces)
+   +----> Grafana Mimir (Metrics)
+   +----> Grafana Loki (Logs)
+</pre>
+
+<p>
+Grafana then provides a <strong>single UI</strong> to correlate:
+</p>
+
+<ul>
+  <li>Traces ↔ Logs ↔ Metrics</li>
+  <li>Errors ↔ Latency ↔ Resource usage</li>
+</ul>
+
+<hr/>
+
+<h2>Why OTLP is Important</h2>
+
+<ul>
+  <li>Vendor-neutral and future-proof</li>
+  <li>Single protocol for traces, metrics, and logs</li>
+  <li>Easy backend switching (Zipkin ↔ Jaeger ↔ Grafana)</li>
+  <li>Enables true observability correlation</li>
+</ul>
+
+<p>
+<strong>OTLP is the foundation of modern observability.</strong>
+</p>
+
+
+
 
 
 
