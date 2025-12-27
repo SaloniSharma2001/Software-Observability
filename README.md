@@ -142,7 +142,7 @@ To achieve this, <strong>Distributed Tracing</strong> creates
 
 <p>We can make our own custom span and inside that a child span, just to know when the a particular operation started and when it ended. A child span will be part of parent span means task inside a task and how much time it took for that child task to execute will be observed with the help of child span.</p>
 
- <strong>When do we need to create a new span</strong>:
+ <strong>In general, in the below mentioned cases for which Springboot microserivce internally creates a new span</strong>:
 
 <ul>
   <li>When we have <strong>an incoming request</strong> to an application.</li>
