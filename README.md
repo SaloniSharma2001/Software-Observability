@@ -209,6 +209,281 @@ in a single API request appear together.
   </li>
 </ul>
 
+<img width="1141" height="373" alt="image" src="https://github.com/user-attachments/assets/43f80169-f9a5-4a19-bbac-bbb4a66ab9b6" />
+
+<h2>Distributed Tracing with Spring Cloud Sleuth and Zipkin</h2>
+
+<p>
+When a new API request enters the system, <strong>Spring Cloud Sleuth</strong>
+automatically takes responsibility for generating all the required tracing
+information.
+</p>
+
+<h3>Trace and Span Generation</h3>
+
+<p>
+For every fresh request, Sleuth generates a <strong>Trace ID</strong> and an
+initial <strong>Span ID</strong>.
+</p>
+
+<ul>
+  <li>
+    The <strong>Trace ID</strong> uniquely identifies the request across all
+    microservices.
+  </li>
+  <li>
+    The <strong>Span ID</strong> represents a single unit of work within a
+    service.
+  </li>
+</ul>
+
+<p>
+As the request propagates to downstream microservices, Sleuth automatically
+adds the <strong>Trace ID</strong> and <strong>Parent Span ID</strong> to the
+<strong>request headers</strong>.
+</p>
+
+<p>
+This ensures that:
+</p>
+
+<ul>
+  <li>The downstream service does <strong>not generate a new Trace ID</strong></li>
+  <li>The new span is correctly linked to its <strong>parent span</strong></li>
+  <li>The complete request flow remains connected across services</li>
+</ul>
+
+<h3>Span Lifecycle</h3>
+
+<p>
+Each service creates its own span to represent the work it performs.
+Every span contains at least the following information:
+</p>
+
+<ul>
+  <li><strong>Trace ID</strong></li>
+  <li><strong>Span ID</strong></li>
+  <li><strong>Parent Span ID</strong></li>
+</ul>
+
+<p>
+In addition to these, spans can include extra metadata such as:
+</p>
+
+<ul>
+  <li>Request URL</li>
+  <li>HTTP method</li>
+  <li>Service name</li>
+  <li>Execution time</li>
+  <li>Error details (if any)</li>
+</ul>
+
+<p>
+Once a span is completed, <strong>Spring Cloud Sleuth</strong> places it into an
+<strong>asynchronous in-memory queue</strong>.  
+This process is handled internally by Sleuth to avoid blocking the main
+request flow.
+</p>
+
+<h3>Zipkin Exporter</h3>
+
+<p>
+The <strong>Zipkin Exporter</strong> is responsible for sending completed spans
+from the in-memory queue to the <strong>Zipkin backend</strong>.
+</p>
+
+<p>
+It exports span data asynchronously, ensuring minimal performance impact on
+the application.
+</p>
+
+<h3>Zipkin Backend</h3>
+
+<p>
+The <strong>Zipkin backend</strong> receives span data from multiple services
+and builds a <strong>tree-like structure</strong> by stitching together
+<strong>Trace IDs</strong> and <strong>Span IDs</strong>.
+</p>
+
+<p>
+This stitched view allows Zipkin to:
+</p>
+
+<ul>
+  <li>Visualize the complete request flow across microservices</li>
+  <li>Show parent-child relationships between spans</li>
+  <li>Display latency and timing information for each service</li>
+  <li>Help identify bottlenecks and failures</li>
+</ul>
+
+<p>
+Apart from Zipkin, other observability tools such as
+<strong>Grafana</strong> can also be used for visualization and monitoring,
+depending on the tracing backend and setup.
+</p>
+<h2>Distributed Tracing – Diagram Friendly Explanation</h2>
+
+<p>
+Distributed Tracing tracks the complete journey of an API request as it flows
+through multiple microservices using a <strong>Trace ID</strong> and
+<strong>Span IDs</strong>.
+</p>
+
+<h3>High-Level Flow</h3>
+
+<pre>
+Client Request
+      |
+      v
++----------------+
+| Order Service  |
+| Trace ID: T1   |
+| Span ID: S1    |
++----------------+
+      |
+      v
++-------------------+
+| Payment Service   |
+| Trace ID: T1      |
+| Span ID: S2       |
+| Parent: S1        |
++-------------------+
+      |
+      v
++-------------------+
+| Inventory Service |
+| Trace ID: T1      |
+| Span ID: S3       |
+| Parent: S2        |
++-------------------+
+</pre>
+
+<p>
+All services share the <strong>same Trace ID</strong>, but each service creates
+its own <strong>Span ID</strong> to represent the work it performs.
+</p>
+
+---
+
+<h2>Step-by-Step Request Flow Example</h2>
+
+<h3>Step 1: Client Sends Request</h3>
+
+<p>
+A client sends a request to the <strong>Order Service</strong>.
+Since this is a new request, <strong>Spring Cloud Sleuth</strong> generates:
+</p>
+
+<ul>
+  <li>A new <strong>Trace ID</strong> (example: <code>T123</code>)</li>
+  <li>An initial <strong>Span ID</strong> (example: <code>S1</code>)</li>
+</ul>
+
+<pre>
+TRACE-ID=T123
+SPAN-ID=S1
+</pre>
+
+---
+
+<h3>Step 2: Order Service Processes the Request</h3>
+
+<p>
+The Order Service creates a span representing its internal processing.
+Once completed, the span is placed into an
+<strong>asynchronous in-memory queue</strong>.
+</p>
+
+<pre>
+TRACE-ID=T123 [OrderService] Order created for userId=55
+</pre>
+
+---
+
+<h3>Step 3: Request Propagates to Payment Service</h3>
+
+<p>
+When Order Service calls the Payment Service, Sleuth automatically propagates
+the tracing information via request headers:
+</p>
+
+<ul>
+  <li><strong>Trace ID: T123</strong></li>
+  <li><strong>Parent Span ID: S1</strong></li>
+</ul>
+
+<p>
+The Payment Service:
+</p>
+
+<ul>
+  <li>Does <strong>not</strong> create a new Trace ID</li>
+  <li>Creates a new Span ID (example: <code>S2</code>)</li>
+  <li>Links the span to its parent (<code>S1</code>)</li>
+</ul>
+
+<pre>
+TRACE-ID=T123
+SPAN-ID=S2
+PARENT-SPAN-ID=S1
+</pre>
+
+---
+
+<h3>Step 4: Payment Service Completes Its Work</h3>
+
+<p>
+After processing, the Payment Service completes its span and places it into the
+in-memory queue managed by Sleuth.
+</p>
+
+<pre>
+TRACE-ID=T123 [PaymentService] Payment timeout userId=55
+</pre>
+
+---
+
+<h3>Step 5: Zipkin Exporter Sends Spans</h3>
+
+<p>
+The <strong>Zipkin Exporter</strong> asynchronously picks completed spans from
+the in-memory queue and sends them to the <strong>Zipkin backend</strong>.
+</p>
+
+<p>
+This asynchronous export ensures that tracing does not impact application
+performance.
+</p>
+
+---
+
+<h3>Step 6: Zipkin Backend Builds the Trace</h3>
+
+<p>
+The Zipkin backend receives spans from all services and stitches them together
+using:
+</p>
+
+<ul>
+  <li>Trace ID</li>
+  <li>Span ID</li>
+  <li>Parent Span ID</li>
+</ul>
+
+<p>
+This creates a <strong>tree-like visualization</strong> that shows:
+</p>
+
+<ul>
+  <li>Which service called which service</li>
+  <li>How much time each service took</li>
+  <li>Where errors or delays occurred</li>
+</ul>
+
+<p>
+Using tools like <strong>Zipkin UI</strong> or <strong>Grafana</strong>, engineers
+can easily analyze and debug distributed systems.
+</p>
 
 
 
