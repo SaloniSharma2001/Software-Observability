@@ -148,8 +148,8 @@ To achieve this, <strong>Distributed Tracing</strong> creates
 
 <ul>
   <li>When we have <strong>an incoming request</strong> to an application.</li>
-    <li>When we create <strong>a new thread or thread handof</strong>.</li>
-      <li>Within an application (When having atleast two application) <strong>trying to invoke a second application</strong> so for a duration from when the request initiated for invoking the second application till the response is returned</li>
+    <li>When we create <strong>a new thread or thread handoffs</strong>.</li>
+      <li>Within an application (When having at least two applications) <strong>trying to invoke a second application</strong>, so for a duration from when the request is initiated for invoking the second application till the response is returned</li>
 </ul>
 
 <img width="1307" height="303" alt="image" src="https://github.com/user-attachments/assets/5a733a3f-0b80-46e3-8026-956aefca25f0" />
@@ -709,6 +709,415 @@ Grafana then provides a <strong>single UI</strong> to correlate:
 <p>
 <strong>OTLP is the foundation of modern observability.</strong>
 </p>
+
+<h2>Implementation</h2>
+
+<h3>Step 1: Choose a Tracing Backend and Start the Server</h3>
+
+<p>
+The first step in implementing distributed tracing is to choose a
+<strong>tracing backend</strong> that will collect, store, and visualize traces.
+</p>
+
+<p>
+In this setup, we are using <strong>Jaeger</strong> as the tracing backend.
+</p>
+
+<h3>Running Jaeger Using Docker</h3>
+
+<p>
+Jaeger provides an <strong>all-in-one</strong> Docker image that includes:
+</p>
+
+<ul>
+  <li>Jaeger UI</li>
+  <li>Collector</li>
+  <li>Query service</li>
+  <li>Storage</li>
+</ul>
+
+<p>
+We can use Docker to install and run Jaeger easily:
+</p>
+
+<pre>
+docker run -d \
+  -p 16686:16686 \
+  -p 4317:4317 \
+  -p 4318:4318 \
+  jaegertracing/all-in-one:latest
+</pre>
+
+<h3>What Docker Does Internally</h3>
+
+<p>
+When this command is executed, Docker performs the following steps:
+</p>
+
+<ol>
+  <li>Checks if the Jaeger image exists locally</li>
+  <li>If not found, pulls the image from <strong>Docker Hub</strong></li>
+  <li>Creates a new container from the image</li>
+  <li>Runs the container in detached mode (<code>-d</code>)</li>
+  <li>Exposes the required ports to the host machine</li>
+</ol>
+
+<h3>Exposed Ports</h3>
+
+<ul>
+  <li>
+    <strong>16686</strong> – Jaeger UI  
+    <br/>
+    Open in browser:
+    <a href="http://localhost:16686" target="_blank">
+      http://localhost:16686
+    </a>
+  </li>
+  <li>
+    <strong>4317</strong> – OTLP gRPC endpoint  
+    <br/>
+    Used by applications and OpenTelemetry Collector to send trace data via gRPC
+  </li>
+  <li>
+    <strong>4318</strong> – OTLP HTTP endpoint  
+    <br/>
+    Used for sending trace data over HTTP/JSON
+  </li>
+</ul>
+
+<p>
+Once the container is running, Jaeger is ready to receive
+<strong>OTLP trace data</strong> from your applications or from the
+<strong>OpenTelemetry Collector</strong>.
+</p>
+
+<h2>Application setup</h2>
+
+<img width="1036" height="442" alt="image" src="https://github.com/user-attachments/assets/35ea276d-81bf-45c5-ae83-5ec50bbaa0eb" />
+
+<h2>Application Configuration (application.properties)</h2>
+
+<p>
+This section explains the configuration required to enable
+<strong>distributed tracing</strong> in a Spring Boot application using
+<strong>Micrometer</strong>, <strong>OpenTelemetry (OTLP)</strong>, and
+<strong>Jaeger</strong>.
+</p>
+
+<hr/>
+
+<h3>Server Configuration</h3>
+
+<pre>
+server.port=8080
+</pre>
+
+<p>
+Defines the port on which the Spring Boot application will run.
+In this case, the application will be accessible on:
+</p>
+
+<pre>
+http://localhost:8080
+</pre>
+
+<hr/>
+
+<h3>Application Name</h3>
+
+<pre>
+spring.application.name=Trace-App-1
+</pre>
+
+<p>
+This sets the <strong>service name</strong> for the application.
+</p>
+
+<p>
+The service name is important because:
+</p>
+
+<ul>
+  <li>It appears in the tracing backend (Jaeger UI)</li>
+  <li>It helps identify which service generated a particular span</li>
+  <li>It is used to group traces by service</li>
+</ul>
+
+<hr/>
+
+<h3>Micrometer Tracing Configuration</h3>
+
+<pre>
+management.tracing.sampling.probability=1.0
+</pre>
+
+<p>
+This property controls the <strong>sampling rate</strong> for tracing.
+</p>
+
+<ul>
+  <li>
+    <strong>1.0</strong> means <strong>100% of requests are traced</strong>
+  </li>
+  <li>
+    A lower value (for example <code>0.1</code>) would trace only 10% of requests
+  </li>
+</ul>
+
+<p>
+In development or learning environments, keeping this value at
+<strong>1.0</strong> is useful to ensure that every request appears in Jaeger.
+</p>
+
+<p>
+In production environments, this value is usually reduced to avoid performance
+overhead.
+</p>
+
+<hr/>
+
+<h3>OTLP Exporter Configuration (Jaeger)</h3>
+
+<pre>
+management.otlp.tracing.endpoint=http://localhost:4318/v1/traces
+</pre>
+
+<p>
+This property configures the <strong>OTLP exporter</strong>, which is responsible
+for sending trace data (spans) from the application to the tracing backend.
+</p>
+
+<p>
+Explanation:
+</p>
+
+<ul>
+  <li>
+    <strong>http://localhost:4318</strong>  
+    → OTLP HTTP endpoint exposed by the Jaeger all-in-one container
+  </li>
+  <li>
+    <strong>/v1/traces</strong>  
+    → OTLP API path used specifically for sending trace data
+  </li>
+</ul>
+
+<p>
+Whenever a span is completed:
+</p>
+
+<ul>
+  <li>Micrometer collects the span data</li>
+  <li>The OTLP exporter sends it to this endpoint</li>
+  <li>Jaeger receives and stores the span</li>
+</ul>
+
+<hr/>
+
+<h3>End-to-End Flow</h3>
+
+<pre>
+Incoming Request
+      |
+      v
+Spring Boot Application
+      |
+      v
+Micrometer Tracing
+      |
+      v
+OTLP Exporter
+      |
+      v
+Jaeger Backend (http://localhost:4318/v1/traces)
+      |
+      v
+Jaeger UI (http://localhost:16686)
+</pre>
+
+<p>
+As a result, every request handled by this application is traced and visualized
+in the Jaeger UI with complete timing and service information.
+</p>
+
+<hr/>
+
+<h3>Summary</h3>
+
+<ul>
+  <li>The application runs on port <strong>8080</strong></li>
+  <li>The service name is set to <strong>Trace-App-1</strong></li>
+  <li>All requests are traced (<strong>100% sampling</strong>)</li>
+  <li>Spans are exported using <strong>OTLP over HTTP</strong></li>
+  <li>Jaeger acts as the tracing backend and visualization tool</li>
+</ul>
+
+<h3>Tracing Sampling Configuration</h3>
+
+<pre>
+management.tracing.sampling.probability=1.0
+</pre>
+
+<p>
+This property controls the <strong>sampling rate</strong> for distributed
+tracing in a Spring Boot application using <strong>Micrometer Tracing</strong>.
+</p>
+
+<p>
+Sampling determines <strong>how many incoming requests are traced</strong> and
+sent to the tracing backend (for example, Jaeger).
+</p>
+
+<hr/>
+
+<h4>What Does a Value of 1.0 Mean?</h4>
+
+<p>
+The value <strong>1.0</strong> represents a <strong>100% sampling rate</strong>.
+</p>
+
+<ul>
+  <li>Every incoming request is traced</li>
+  <li>A Trace ID and Span IDs are created for each request</li>
+  <li>All spans are exported to the tracing backend</li>
+</ul>
+
+<p>
+This ensures that <strong>no request is skipped</strong> in tracing.
+</p>
+
+<hr/>
+
+<h4>How Sampling Works Internally</h4>
+
+<p>
+When a request enters the application:
+</p>
+
+<ol>
+  <li>Micrometer checks the sampling probability</li>
+  <li>A random decision is made based on the configured value</li>
+  <li>If the request is sampled, tracing data is generated</li>
+  <li>If not sampled, no spans are created</li>
+</ol>
+
+<p>
+With a probability of <strong>1.0</strong>, this decision always evaluates to
+<strong>true</strong>, meaning tracing is always enabled.
+</p>
+
+<hr/>
+
+<h4>Examples of Different Sampling Values</h4>
+
+<table border="1" cellpadding="8" cellspacing="0">
+  <thead>
+    <tr>
+      <th>Sampling Value</th>
+      <th>Meaning</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>1.0</td>
+      <td>Trace 100% of requests</td>
+    </tr>
+    <tr>
+      <td>0.5</td>
+      <td>Trace approximately 50% of requests</td>
+    </tr>
+    <tr>
+      <td>0.1</td>
+      <td>Trace approximately 10% of requests</td>
+    </tr>
+    <tr>
+      <td>0.01</td>
+      <td>Trace approximately 1% of requests</td>
+    </tr>
+  </tbody>
+</table>
+
+<p>
+Lower values reduce the volume of tracing data but may miss rare or
+intermittent issues.
+</p>
+
+<hr/>
+
+<h4>Why Use 1.0 in Development?</h4>
+
+<ul>
+  <li>Ensures all requests appear in the tracing UI</li>
+  <li>Makes learning and debugging easier</li>
+  <li>Helps verify correct trace propagation across services</li>
+</ul>
+
+<p>
+For tutorials, demos, and local development,
+<strong>1.0 is strongly recommended</strong>.
+</p>
+
+<hr/>
+
+<h4>Why Not Use 1.0 in Production?</h4>
+
+<p>
+Tracing every request in a high-traffic production system can cause:
+</p>
+
+<ul>
+  <li>Increased CPU and memory usage</li>
+  <li>Higher network overhead due to span exports</li>
+  <li>Larger storage requirements in the tracing backend</li>
+</ul>
+
+<p>
+For production systems, a lower sampling rate is usually preferred.
+</p>
+
+<hr/>
+
+<h4>Best Practices</h4>
+
+<ul>
+  <li>Use <strong>1.0</strong> in local and test environments</li>
+  <li>Use <strong>0.1</strong> or lower in production</li>
+  <li>Increase sampling temporarily during incident investigation</li>
+  <li>Combine sampling with error-based or adaptive sampling if supported</li>
+</ul>
+
+<p>
+Proper sampling helps balance <strong>observability</strong> and
+<strong>system performance</strong>.
+</p>
+
+
+<img width="986" height="469" alt="image" src="https://github.com/user-attachments/assets/438912b4-259d-4392-b4d4-2ba460fd96b6" />
+
+<h4>That is all we need:</h4>
+<p>Now tracing automatically initializes and starts generating spans for:</p>
+<ul>
+  <li> <strong>Incoming HTTP requests</strong>.</li>
+  <li><strong>Outgoing HTTP requests</strong>.</li>
+  <li>Thread Handoffs.</li>
+  <li>Propagation of requests, etc.</li>
+</ul>
+
+<img width="1626" height="567" alt="image" src="https://github.com/user-attachments/assets/aa5a2169-aeb9-47b1-ba11-b5a20066b4a0" />
+
+<img width="984" height="610" alt="image" src="https://github.com/user-attachments/assets/4c7858de-67d5-4251-a837-34d8c3f4798d" />
+
+<img width="1675" height="872" alt="image" src="https://github.com/user-attachments/assets/1b1602c8-eb1d-44b1-9275-82b1363587fb" />
+
+<img width="1746" height="713" alt="image" src="https://github.com/user-attachments/assets/019085b7-aad8-4656-8790-87a0c8b8cd66" />
+
+<img width="903" height="525" alt="image" src="https://github.com/user-attachments/assets/7506eb70-fde6-420c-8166-f251437576fb" />
+
+<img width="1771" height="893" alt="image" src="https://github.com/user-attachments/assets/9e80c468-27cb-482f-824a-540184f580b6" />
+
+
+
+
 
 
 
