@@ -1115,6 +1115,158 @@ Proper sampling helps balance <strong>observability</strong> and
 
 <img width="1771" height="893" alt="image" src="https://github.com/user-attachments/assets/9e80c468-27cb-482f-824a-540184f580b6" />
 
+<img width="507" height="211" alt="image" src="https://github.com/user-attachments/assets/f6f99670-408b-4e55-ad41-7b16d29e1436" />
+
+<img width="980" height="400" alt="image" src="https://github.com/user-attachments/assets/dc98c509-83d7-4915-b739-ad8e7aa53d35" />
+
+<img width="1577" height="352" alt="image" src="https://github.com/user-attachments/assets/ed406af2-d407-47f5-b8b4-c7c12de63084" />
+
+<img width="1511" height="937" alt="image" src="https://github.com/user-attachments/assets/b0807b5c-8f37-4b66-98e4-600c6bf42fcb" />
+
+<p>Once we hit the above-mentioned endpoint, that will invoke the application2 endpoint as well.</p>
+
+<img width="1900" height="839" alt="image" src="https://github.com/user-attachments/assets/6d5c69b7-4dc1-456d-a370-35c147b0c12b" />
+
+<p>This is how the trace would look:</p>
+
+<img width="1902" height="415" alt="image" src="https://github.com/user-attachments/assets/4a522a38-5ffd-4eed-9370-4aba93751399" />
+
+<img width="1802" height="526" alt="image" src="https://github.com/user-attachments/assets/89985427-60d5-4283-9f6a-ba8ac57c2102" />
+
+<p>We can see that, from App2 invocation time till the request is complete, the span is larger than the actual processing time within App2. Because the span in App1 measures the entire remote call, not just App2’s internal business logic.</p>
+
+<h2>Note: Difference Between App1 and App2 Span Duration</h2>
+
+<p>
+In distributed tracing, it is <strong>expected behavior</strong> that the span
+duration of the calling service (<strong>App1</strong>) is
+<strong>greater</strong> than the actual processing time of the called service
+(<strong>App2</strong>).
+</p>
+
+<h3>Reason</h3>
+
+<p>
+The span created in <strong>App1</strong> measures the
+<strong>entire remote call lifecycle</strong>, not just the business logic
+executed inside App2.
+</p>
+
+<p>
+This includes:
+</p>
+
+<ul>
+  <li>Request preparation in App1 (serialization, headers, tracing context)</li>
+  <li>Network latency between App1 and App2</li>
+  <li>Request handling and business logic execution in App2</li>
+  <li>Network latency between App2 and App1</li>
+  <li>Response handling in App1 (deserialization, client processing)</li>
+   <li>network + framework + serialization + queuing + tracing overhead</li>
+</ul>
+
+<p>
+In contrast, the span created in <strong>App2</strong> measures
+<strong>only the internal processing time</strong> within App2.
+</p>
+
+<hr/>
+
+<h3>Visual Representation</h3>
+
+<pre>
+App1 Client Span
+┌───────────────────────────────────────────────┐
+|  DNS | Connection | Serialization | Network   |
+|-----------------------------------------------|
+|        App2 Server Span                       |
+|        ┌─────────────────────────────┐        |
+|        | Controller + Business Logic |        |
+|        └─────────────────────────────┘        |
+|-----------------------------------------------|
+| Network | Deserialization | Response  Handling|
+└───────────────────────────────────────────────┘
+</pre>
+
+<p>
+The App2 span is <strong>nested inside</strong> the App1 span, and the App1 span
+represents the <strong>end-to-end latency</strong> of the remote call.
+App1 span = total round-trip time
+</p>
+
+<hr/>
+
+<h3>Example Timeline</h3>
+
+<table border="1" cellpadding="8" cellspacing="0">
+  <thead>
+    <tr>
+      <th>Phase</th>
+      <th>Time (ms)</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>App1 request preparation</td>
+      <td>20</td>
+    </tr>
+    <tr>
+      <td>Network (App1 → App2)</td>
+      <td>40</td>
+    </tr>
+    <tr>
+      <td>App2 processing</td>
+      <td>30</td>
+    </tr>
+    <tr>
+      <td>Network (App2 → App1)</td>
+      <td>40</td>
+    </tr>
+    <tr>
+      <td>Response handling in App1</td>
+      <td>20</td>
+    </tr>
+    <tr>
+      <td><strong>Total App1 span</strong></td>
+      <td><strong>150</strong></td>
+    </tr>
+    <tr>
+      <td><strong>App2 span only</strong></td>
+      <td><strong>30</strong></td>
+    </tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h3>Key Takeaway</h3>
+
+<p>
+The span duration in the calling service represents the
+<strong>complete round-trip latency</strong>, while the span duration in the
+called service represents <strong>only its internal execution time</strong>.
+</p>
+
+<p>
+The difference between the two is caused by
+<strong>network latency, client-side overhead, framework processing, and
+serialization</strong>.
+</p>
+
+
+<p>If we do trace JSON, we will get something like</p>
+
+<img width="1379" height="960" alt="image" src="https://github.com/user-attachments/assets/c3a3963a-7d59-4f3b-8d69-1fd0875c02a3" />
+
+
+
+
+
+
+
+
+
+
 
 
 
