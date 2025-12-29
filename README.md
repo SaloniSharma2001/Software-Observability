@@ -1254,9 +1254,108 @@ serialization</strong>.
 </p>
 
 
-<p>If we do trace JSON, we will get something like</p>
+<p> Jaeger may not get the data in the proper format, but with the help of parent-child mapping in span, Jaeger maps and traces the thing. If we do trace JSON, we will get something like</p>
 
 <img width="1379" height="960" alt="image" src="https://github.com/user-attachments/assets/c3a3963a-7d59-4f3b-8d69-1fd0875c02a3" />
+
+<h3>Step-by-Step Request Flow</h3>
+
+<p><strong>App1 starts a CLIENT span</strong></p>
+<ul>
+  <li>HTTP client span starts (RestTemplate / WebClient / Feign)</li>
+    <li>HTTP client span starts (RestTemplate / WebClient / Feign)
+  </li>
+</ul>
+
+<p><strong>Request preparation (App1)</strong></p>
+<p>Time is spent on:</p>
+<ul>
+  <li>JSON serialization</li>
+  <li>Header injection (traceparent, b3, etc.)</li>
+  <li>Connection pooling / TCP setup</li>
+  <li>TLS handshake (if HTTPS)</li>
+</ul>
+<p>This time is included in App1 span</p>
+
+<p><strong>Network transit (App1 → App2)</strong></p>
+<ul>
+  <li>Packet travel</li>
+  <li>OS scheduling</li>
+  <li>Connection pooling / TCP setup</li>
+  <li>Possible retries or congestion</li>
+</ul>
+<p>Still part of App1 span</p>
+
+<ul>
+  <li><strong>App2 receives request</strong>
+    <ul>
+      <li>Server span starts</li>
+      <li>Framework filters/interceptors run</li>
+      <li>Security filters</li>
+      <li>Controller mapping</li>
+      <li>Business logic execution</li>
+      <li> <strong>This is the App2 span you see</strong></li>
+    </ul>
+  </li>
+
+  <li><strong>Response handling (App2 → App1)</strong>
+    <ul>
+      <li>Response serialization</li>
+      <li>Network latency</li>
+      <li>Deserialization in App1</li>
+      <li>HTTP client processing</li>
+      <li><strong>Still counted in App1 span</strong></li>
+    </ul>
+  </li>
+
+  <li><strong>App1 span ends</strong>
+    <p>Only after:</p>
+    <ul>
+      <li>Response fully received</li>
+      <li>Client span completes</li>
+    </ul>
+  </li>
+
+  <li><strong>Why App2 Processing Time Is Smaller</strong>
+    <p>App2 span measures only:</p>
+    <ul>
+      <li>Request received</li>
+      <li>Controller execution</li>
+      <li>Business logic</li>
+      <li>Response generated</li>
+    </ul>
+    <p>It <strong>does NOT</strong> include:</p>
+    <ul>
+      <li>Network travel</li>
+      <li>Client-side delays</li>
+      <li>Connection setup</li>
+      <li>Serialization/deserialization on App1</li>
+    </ul>
+  </li>
+</ul>
+
+<h3>Important Tracing Rule</h3>
+
+<ul>
+  <li><strong>Core Principle:</strong> Parent span duration ≥ sum of child spans + overhead.</li>
+  <li><strong>Integrity Check:</strong> If the App1 span (parent) was smaller than the App2 span (child), that would be considered a bug or a clock skew issue.</li>
+</ul>
+
+<h3>Extra Factors That Increase App1 Span</h3>
+<p>These factors add latency to the parent span but are usually invisible to the child (App2) span:</p>
+
+<ul>
+  <li><strong>Cold Starts:</strong> Initial resource provisioning or JVM startup lag.</li>
+  <li><strong>Thread Pool Waiting:</strong> Time spent waiting for an available thread to handle the response.</li>
+  <li><strong>Connection Pool Exhaustion:</strong> Delays in acquiring a connection to downstream services.</li>
+  <li><strong>GC Pauses:</strong> Garbage Collection "Stop-the-World" events in the App1 environment.</li>
+  <li><strong>Infrastructure Latency:</strong> Time spent passing through Load Balancers or API Gateways.</li>
+  <li><strong>Resiliency Logic:</strong> Retries, timeouts, and circuit breaker overhead.</li>
+  <li><strong>Instrumentation Overhead:</strong> The time taken by the tracing library itself to record and export spans.</li>
+</ul>
+
+
+
 
 
 
