@@ -1354,6 +1354,216 @@ serialization</strong>.
   <li><strong>Instrumentation Overhead:</strong> The time taken by the tracing library itself to record and export spans.</li>
 </ul>
 
+<h3>Manual Span Creation:</h3>
+
+<p>We don't have to rely on just incoming and outgoing HTTP requests. Instead, we can create our manual span to trace down our DB operation or method processing time period as well.</p>
+
+<img width="1814" height="983" alt="image" src="https://github.com/user-attachments/assets/45ae40df-4f0a-4f77-a625-e4301fd7cd70" />
+
+<img width="880" height="605" alt="image" src="https://github.com/user-attachments/assets/fadb1aff-f6a8-4e76-8f5b-7e6b38bdfc1d" />
+
+<img width="1771" height="979" alt="image" src="https://github.com/user-attachments/assets/e00998c3-983a-4e89-98e7-21e184645b73" />
+<img width="1833" height="971" alt="image" src="https://github.com/user-attachments/assets/d959e5d9-a41b-4a8f-baeb-e531b9b64d0c" />
+
+<h2>Manual Span Creation Using Micrometer Tracer</h2>
+
+<p>
+This section explains how to <strong>manually create a child span</strong> using
+Micrometer’s <code>Tracer</code> API, how it relates to the current span, and how
+scope management works internally.
+</p>
+
+<hr/>
+
+<h3>Why Tracer is Autowired</h3>
+
+<p>
+Micrometer provides the <code>Tracer</code> interface to interact with the
+underlying tracing system (OpenTelemetry, Brave, etc.).
+</p>
+
+<pre>
+@Autowired
+Tracer tracer;
+</pre>
+
+<p>
+We use this interface when we want:
+</p>
+
+<ul>
+  <li>Programmatic control over spans</li>
+  <li>Manual span creation</li>
+  <li>Custom span naming or timing</li>
+</ul>
+
+<hr/>
+
+<h3>Fetching the Current (Parent) Span</h3>
+
+<pre>
+Span parentSpan = tracer.currentSpan();
+</pre>
+
+<p>
+This retrieves the <strong>currently active span</strong> associated with the
+incoming request.
+</p>
+
+<ul>
+  <li>This span already has a <code>traceId</code></li>
+  <li>It represents the ongoing request handled by Spring</li>
+</ul>
+
+<p>
+If we do not fetch and reuse this span, a new trace may be created unintentionally.
+</p>
+
+<hr/>
+
+<h3>Creating a Child Span</h3>
+
+<pre>
+Span childSpan = tracer.nextSpan(parentSpan)
+        .name("manual-child-span");
+</pre>
+
+<p>
+Here:
+</p>
+
+<ul>
+  <li>The child span <strong>inherits the same traceId</strong></li>
+  <li>A <strong>new spanId</strong> is generated</li>
+  <li>The parent-child relationship is preserved</li>
+</ul>
+
+<p>
+<strong>Important:</strong><br/>
+If <code>parentSpan</code> is not passed,
+<code>nextSpan()</code> will create a completely new trace.
+</p>
+
+<hr/>
+
+<h3>Starting the Span</h3>
+
+<pre>
+childSpan.start();
+</pre>
+
+<p>
+This starts the timer for the child span, but:
+</p>
+
+<ul>
+  <li>It does <strong>not</strong> make it the current span</li>
+  <li><code>tracer.currentSpan()</code> will still return the parent span</li>
+</ul>
+
+<hr/>
+
+<h3>Making the Child Span Current (Scope)</h3>
+
+<pre>
+Tracer.SpanInScope spanInScope = tracer.withSpan(childSpan);
+</pre>
+
+<p>
+This step is critical.
+</p>
+
+<ul>
+  <li>Makes the child span the <strong>active span</strong></li>
+  <li>Any nested operations will attach to this span</li>
+  <li>The previous span is stored internally</li>
+</ul>
+
+<p>
+After this:
+</p>
+
+<pre>
+tracer.currentSpan(); // returns childSpan
+</pre>
+
+<hr/>
+
+<h3>Business Logic Execution</h3>
+
+<pre>
+try {
+    // business logic
+    Thread.sleep(70);
+} catch (Exception ex) {
+    // handle exception
+} finally {
+    if (spanInScope != null) {
+        spanInScope.close();
+    }
+    childSpan.end();
+}
+</pre>
+
+<p>
+Explanation:
+</p>
+
+<ul>
+  <li>Business logic executes while the child span is active</li>
+  <li><code>spanInScope.close()</code> restores the previous span</li>
+  <li><code>childSpan.end()</code> stops the timer and exports the span</li>
+</ul>
+
+<hr/>
+
+<h3>Why Closing the Scope is Important</h3>
+
+<p>
+If the scope is not closed:
+</p>
+
+<ul>
+  <li>The child span may remain active incorrectly</li>
+  <li>Future spans may attach to the wrong parent</li>
+  <li>Trace structure becomes incorrect</li>
+</ul>
+
+<p>
+Closing the scope ensures proper context restoration.
+</p>
+
+<hr/>
+
+<h3>Final Span Hierarchy</h3>
+
+<pre>
+Trace ID
+└── Parent Span (auto-created by Spring)
+    └── manual-child-span (created manually)
+</pre>
+
+<hr/>
+
+<h3>Key Takeaways</h3>
+
+<ul>
+  <li><code>currentSpan()</code> fetches the active span</li>
+  <li><code>nextSpan(parent)</code> creates a child span</li>
+  <li><code>start()</code> starts timing but not context</li>
+  <li><code>withSpan()</code> sets the active context</li>
+  <li><code>close()</code> restores the previous span</li>
+  <li><code>end()</code> finalizes and exports the span</li>
+</ul>
+
+<img width="1834" height="492" alt="image" src="https://github.com/user-attachments/assets/80459ed8-38eb-4757-9d35-5730b356ad10" />
+
+
+
+
+
+
+
 
 
 
