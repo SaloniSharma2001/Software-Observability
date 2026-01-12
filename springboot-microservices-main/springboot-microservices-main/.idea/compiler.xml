@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CompilerConfiguration">
+    <annotationProcessing>
+      <profile name="Maven default annotation processors profile" enabled="true">
+        <sourceOutputDir name="target/generated-sources/annotations" />
+        <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
+        <outputRelativeToContentRoot value="true" />
+        <module name="configManagemenet" />
+        <module name="LogApp" />
+        <module name="orderMicroservice" />
+        <module name="Producer" />
+        <module name="Application2" />
+        <module name="Application1" />
+        <module name="tracingApp2" />
+        <module name="tracingApp1" />
+      </profile>
+    </annotationProcessing>
+    <bytecodeTargetLevel>
+      <module name="Application1" target="17" />
+      <module name="Application2" target="17" />
+      <module name="configManagement" target="1.8" />
+      <module name="ConfigurationProperties" target="17" />
+      <module name="LogApplication1" target="21" />
+      <module name="RefreshScope" target="17" />
+      <module name="SpringCloudBusPublisher" target="17" />
+    </bytecodeTargetLevel>
+  </component>
+  <component name="JavacSettings">
+    <option name="ADDITIONAL_OPTIONS_OVERRIDE">
+      <module name="Actuator" options="-parameters" />
+      <module name="Application1" options="-parameters" />
+      <module name="Application2" options="-parameters" />
+      <module name="ConfigurationProperties" options="-parameters" />
+      <module name="LogApp" options="-parameters" />
+      <module name="Producer" options="-parameters" />
+      <module name="SpringCloudBusConsumer" options="-parameters" />
+      <module name="SpringCloudBusPublisher" options="-parameters" />
+      <module name="configManagemenet" options="-parameters" />
+      <module name="configManagemenet (1)" options="-parameters" />
+      <module name="configurationProperties" options="-parameters" />
+      <module name="orderMicroservice" options="-parameters" />
+      <module name="orderMicroservice (1)" options="-parameters" />
+      <module name="tracingApp1" options="-parameters" />
+      <module name="tracingApp2" options="-parameters" />
+    </option>
+  </component>
+</project>
